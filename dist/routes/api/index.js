@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const students_1 = require("./students");
+const teachers_1 = require("./teachers");
+const subjects_1 = require("./subjects");
+const courses_1 = require("./courses");
+exports.route = express_1.Router();
+exports.route.use('/students', students_1.students);
+exports.route.use('/teachers', teachers_1.teachers);
+exports.route.use('/subjects', subjects_1.subjects);
+exports.route.use('/courses', courses_1.courses);
