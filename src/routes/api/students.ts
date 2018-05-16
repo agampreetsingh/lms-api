@@ -1,58 +1,57 @@
 import express, { Router, Request } from 'express'
-import { Students } from '../../models/Student'
-import { Batches } from '../../models/Batch'
-import {} from '../../models/';
+import { Students } from '../../db'
+import { Batches } from '../../db'
+
 
 export const students: Router = Router();
 
 students.get('/', (req, res) => {
     return Students.findAll({
-        attributes: ['id', 'studentRoll', 'studentName']
+        attributes: ['id', 'name']
     })
         .then((allStudents) => {
             res.status(200).send(allStudents);
         })
         .catch((err) => {
-            res.status(500).send("No student found")
+            res.status(500).send({
+               err
+            })
         })
 });
 
 students.post('/', (request, response) => {    
-    Students.create({
-      studentRoll: request.body.roll,
-      studentName: request.body.name
+    Students.create({     
+      name: request.body.name
     })
     .then((student) => response.status(200).send(student))
-    .catch((error) => response.status(400).send("Cannot Add"))
+    .catch((error) => response.status(400).send(error))
 })
 
 students.get('/:id', (req, res) => {
     return Students.find({
-        attributes: ['id', 'studentRoll', 'studentName'],
+        attributes: ['id', 'name'],
         where: { id: [req.params.id] }
     })
         .then((student) => {
             res.status(200).send(student);
         })
         .catch((err) => {
-            res.status(500).send("No student found")
+            res.status(500).send({
+               err
+            })
         })
 });
 
-students.get('/:id/batches', (req, res) => {
-    return Batches.findAll({
-        attributes: ['batchName'],
-        include: [{
-            model: Students,
-            attributes: ['studentName'],
-            where: { id: [req.params.id] }
-        }],
+students.get('/:id/batches', (req, res) => {   
+    Students.findOne({
+        where: {
+            id: req.params.id
+        }
     })
-        .then((batches) => {
-            res.status(200).send(batches);
-        })
-        .catch((err) => {
-            res.status(500).send("No student found")
-        })
+    .then((student) => {
+        student.getBatches().then((batches) => res.send(batches))
+    })
 });
+
+
 

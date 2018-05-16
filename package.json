@@ -11,6 +11,7 @@
   "author": "Agampreet Singh",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.4",
     "express": "^4.16.3",
     "mysql": "^2.15.0",
     "sequelize": "^4.37.7",

@@ -1,38 +1,43 @@
 import express, { Router, Request } from 'express'
-import { Courses } from '../../models/Course'
-import { Batches } from '../../models/Batch'
-import { Lectures } from '../../models/Lecture'
-import { Teachers } from '../../models/Teacher'
-import { Students } from '../../models/Student'
+import { Courses } from '../../db'
+import { Batches } from '../../db'
+import { Lectures } from '../../db'
+import { Teachers } from '../../db'
+import { Students } from '../../db'
+import { Batch } from '../../interfaces/Batch';
 
 export const courses: Router = Router();
 
 courses.get('/', (req, res) => {
     return Courses.findAll({
-        attributes: ['id', 'courseName']
+        attributes: ['id', 'name']
     })
         .then((allCourses) => {
             res.status(200).send(allCourses);
         })
         .catch((err) => {
-            res.status(500).send("Courses not found")
+            res.status(500).send({
+                 err
+            })
         })
 });
 
 courses.post('/', (request, response) => {
     if(!request.body.name)
-      return response.status(400).send("Invalid Request");
+      return response.status(400).send("Course Name not Found");
     Courses.create({
-        courseName: request.body.name
+        name: request.body.name
     })
     .then((course) => {
         response.status(200).send(course);
+    
     })
+    
 });
 
 courses.get('/:id', (req, res) => {
-    return Courses.find({
-        attributes: ['id', 'courseName'],
+    return Courses.findOne({
+        attributes: ['id', 'name'],
         where: { id: [req.params.id] }
     })
         .then((course) => {
@@ -45,108 +50,112 @@ courses.get('/:id', (req, res) => {
         })
 });
 
-courses.get('/:id/batches', (req, res) => {
-    return Batches.findAll({
-        attributes: ['id', 'batchName'],
-        include: [{
-            model: Courses,
-            attributes: ['courseName'],
-            required: true
-        }],
-        where: { cid: [req.params.id] }
+courses.get('/:id/batches', (req, res) => {   
+    Courses.findOne({
+        where: {
+            id: req.params.id
+        }
     })
-        .then((batches) => {
-            res.status(200).send(batches);
-        })
-        .catch((err) => {
-            res.status(500).send("Course not found")
-        })
+    .then((course) => {
+        course.getBatches().then((batches) => res.send(batches))
+    })
 });
 
 courses.post('/:id/batches', (request, response) => {
     if(isNaN(parseInt(request.params.id)))
-      return response.status(400).send("Invalid course ID") 
-    Batches.create({
-        batchName: request.body.name,
-        cid: request.params.id
+      return response.status(400).send("Course is invalid")     
+    Courses.findOne({
+        where: {
+            id: request.params.id
+        }
     })
-    .then((batch) => response.status(200).send(batch))
+    .then((course) => {     
+      Batches.create({ name: request.body.name }).then((batch) => {
+        course.addBatches(batch).then((ans) => response.send(ans))   
+     });       
+    })
 })
 
-courses.get('/:id/batches/:bid', (req, res) => {
-    return Batches.find({
-        attributes: ['id', 'batchName'],
-        include: [{
-            model: Courses,
-            attributes: ['courseName'],
-            required: true
-        }],
+courses.get('/:courseId/batches/:batchId', (req, res) => {
+   
+    Courses.findOne({
         where: {
-            cid: [req.params.id],
-            id: [req.params.bid]
+            id: req.params.courseId
         }
     })
-        .then((batches) => {
-
-            res.status(200).send(batches);
-        })
-        .catch((err) => {
-            res.status(500).send("Batches not found")
-        })
-});
-
-courses.get('/:id/batches/:bid/lectures', (req, res) => {
-       Lectures.findAll({
-           where: {
-               bid: req.params.bid
-           }
+    .then((course) => {
+       course.getBatches().then((batchArray) => {
+          for(let obj of batchArray) {
+              if(obj.CourseBatch.batchId == req.params.batchId)
+                 return res.send(obj)
+          }
+          res.send("No batch found")
        })
-        .then((lectures) => {
-            res.status(200).send(lectures);
-        })
-        .catch((err) => {
-            res.status(500).send("Lectures not found")
-        })
+    })
 });
 
-courses.post('/:couseId/batches/:batchId/lectures', (request, response) => {
-    Lectures.create({       
-        bid: request.params.batchId,       
-        tid: request.body.teacherId
-    })
-    .then((lecture) => response.status(200).send(lecture))
-    .catch((error) => response.status(400).send("Lecture not found"))
+courses.get('/:id/batches/:bid/lectures', (req, res) => {    
+ 
+    Courses.findOne({where: {id: req.params.id}})
+           .then((course) => {
+               if(!course)
+                  return res.send("No course and lecture found")
+               course.getBatches()
+                     .then((batchArray) => {
+                        if(!batchArray)
+                          return res.send("No such record exists")
+                        let exist: boolean = false;
+                        for(let obj of batchArray) {                           
+                            if(obj.CourseBatch.batchId == req.params.bid) {                               
+                                exist = true;
+                                Lectures.findAll({
+                                    where: {
+                                        batchId: req.params.bid
+                                    }
+                                })
+                                .then(lectures => {
+                                    return res.send(lectures)
+                                })
+                            }                              
+                        }
+                        if(!exist)
+                          res.send('No Lecture Found')
+                     })
+           })   
 });
+
 
 courses.get('/:id/batches/:bid/lectures/:lid', (req, res) => {
-    return Lectures.findOne({
-        attributes: ['id'],
-        include: [{
-            model: Batches,
-            attributes: ['batchName'],
-
-            include: [{
-                model: Courses,
-                attributes: ['courseName'],
-                required: true
-            }],
-
-            where: {
-                cid: [req.params.id],
-                id: [req.params.bid]
-            }
-        }],
-        where: {
-            id: [req.params.lid]
-        }
-    })
+    
+      Lectures.findOne({
+          where: {
+              id: req.params.lid,
+              batchId: req.params.bid
+          }
+      })
         .then((lectures) => {
             res.status(200).send(lectures);
         })
         .catch((err) => {
-            res.status(500).send("Lectures not found")
+            res.status(500).send({
+                err
+            })
         })
 });
+
+courses.post('/:courseId/batches/:batchId/lectures', (request, response) => {
+    Courses.findOne({where: {id: request.params.courseId}}).then((course) => {
+        if(!course)  return response.send("No course Found")
+        course.getBatches().then((batches) => {
+            if(!batches)  return response.send("No Batch Found")
+            Lectures.create({
+                name: request.body.name,
+                batchId: request.params.batchId
+            })
+            .then((lecture) => response.send(lecture))
+        })
+    })
+})
 
 courses.get('/:id/batches/:bid/teachers', (req, res) => {
     return Lectures.findAll({
@@ -176,32 +185,34 @@ courses.get('/:id/batches/:bid/teachers', (req, res) => {
             res.status(200).send(lectures);
         })
         .catch((err) => {
-            res.status(500).send("Teachers not found")
+            res.status(500).send({
+                 err
+            })
         })
 });
 
 courses.get('/:id/batches/:bid/students', (req, res) => {
-    return Batches.findAll({
-        attributes: ['batchName'],
-        include: [{
-            model: Courses,
-            attributes: ['courseName'],
-        },
-        {
-            model: Students,
-            attributes: ['studentName']
-        }],
+   
+    Courses.findOne({
         where: {
-            cid: [req.params.id],
-            id: [req.params.bid]
+            id: req.params.id
         }
     })
-        .then((students) => {
-            res.status(200).send(students);
+    .then((course) => {
+        if(!course)
+          return res.json("No course Found")
+          Batches.findOne({
+            where: {
+                id: req.params.bid
+            }
         })
-        .catch((err) => {
-            res.status(500).send("Teachers not found")
+        .then((batch) => {
+            if(!batch) 
+               return res.json("No Batch Found");
+            batch.getStudents().then((students) => res.send(students))
         })
+    })
+    
 });
 
 
@@ -212,6 +223,7 @@ courses.post('/', (req, res) => {
         .then((course) => {
             res.status(200).send(course);
         })
+    
 })
 
 
@@ -220,6 +232,6 @@ courses.delete('/:id', (req, res) => {
         where: { id: [req.params.id] }
     })
         .catch((err) => {
-            res.status(500).send("Cannot delete")
+            res.status(500).send("Unable to delete")
         })
 })

@@ -1,3 +1,6 @@
 export interface Batch {
-    batchName: string;
+    name: string;
+
+    addCourses(course: any);
+    getStudents();
 }
